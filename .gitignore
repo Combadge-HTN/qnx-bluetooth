@@ -1,0 +1,35 @@
+# Runtime state and credentials
+*.tlv
+*.pklg
+*.pcap
+*.pcapng
+audio.pcm
+.radio-lock/
+*.log
+*.core
+core
+.env
+.env.*
+# Local packages, audit output, builds and research copies
+/packages/
+/pcm-tests/
+/APK-AUDIO-AUDIT.txt
+/bsp_raspberrypi-bcm2712-rpi5-main/
+/*-reference.c
+/uart_probe
+*.o
+*.a
+*.so
+*.so.*
+*.apk
+*.tar.gz
+__pycache__/
+*.pyc
+/btstack-master/port/*
+!/btstack-master/port/qnx-pi5/
+/btstack-master/port/qnx-pi5/a2dp_source_demo
+/btstack-master/doc/
+/btstack-master/test/
+/btstack-master/.github/
+# Obtain proprietary radio firmware using fetch-firmware.sh.
+/BCM4345C0.hcd

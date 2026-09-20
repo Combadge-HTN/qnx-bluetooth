@@ -495,6 +495,11 @@ static void dump_sbc_configuration(media_codec_configuration_sbc_t * configurati
 }
 
 static void a2dp_source_demo_start_scanning(void){
+    if(media_tracker.a2dp_cid || media_tracker.stream_opened){
+        puts("Already connected or connecting; discovery remains off.");
+        return;
+    }
+    if(scan_active) return;
     printf("Start scanning...\n");
     gap_inquiry_start(A2DP_SOURCE_DEMO_INQUIRY_DURATION_1280MS);
     scan_active = true;
@@ -537,6 +542,7 @@ static void hci_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *p
             gap_ssp_confirmation_response(address);
             break;
         case GAP_EVENT_INQUIRY_RESULT:
+            if(!scan_active || media_tracker.a2dp_cid) break;
             gap_event_inquiry_result_get_bd_addr(packet, address);
             // print info
             printf("Device found: %s ",  bd_addr_to_str(address));
@@ -568,7 +574,7 @@ static void hci_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *p
             }
             break;
         case GAP_EVENT_INQUIRY_COMPLETE:
-            if (scan_active){
+            if (scan_active && !media_tracker.a2dp_cid && !media_tracker.stream_opened){
                 printf("No Bluetooth speakers found, scanning again...\n");
                 gap_inquiry_start(A2DP_SOURCE_DEMO_INQUIRY_DURATION_1280MS);
             }
@@ -620,6 +626,8 @@ static void a2dp_source_packet_handler(uint8_t packet_type, uint16_t channel, ui
                 break;
             }
             media_tracker.a2dp_cid = cid;
+            scan_active = false;
+            gap_inquiry_stop();
             media_tracker.volume = 32;
 
             printf("A2DP Source: Connected to address %s, a2dp cid 0x%02x, local seid 0x%02x.\n", bd_addr_to_str(address), media_tracker.a2dp_cid, media_tracker.local_seid);
@@ -1106,7 +1114,7 @@ static void stdin_process(char cmd){
             fifo_audio = true;
             test_muted = false;
             btstack_run_loop_remove_timer(&quiet_test_timer);
-            puts("PCM FIFO ready: audio.pcm, S16_LE stereo 44100 Hz, gain 1/32. p stops.");
+            printf("PCM FIFO ready: audio.pcm, S16_LE stereo 44100 Hz, gain 1/%u. p stops.\n", 1u << VOLUME_REDUCTION);
             if(play_info.status != AVRCP_PLAYBACK_STATUS_PLAYING)
                 status = a2dp_source_start_stream(media_tracker.a2dp_cid, media_tracker.local_seid);
             break;

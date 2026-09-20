@@ -13,6 +13,7 @@
 
 static uintptr_t regs;
 static uint32_t saved_lcr, saved_mcr, saved_dll, saved_dlh;
+static int fifo_was_enabled;
 static int opened, error;
 static btstack_timer_source_t timer;
 static const btstack_uart_config_t *config;
@@ -73,6 +74,7 @@ static int close_uart(void) {
     /* Caller powers down radio after close; restore initial UART state. */
     wr(3,0x83); wr(0,saved_dll); wr(1,saved_dlh);
     wr(3,saved_lcr); wr(4,saved_mcr); wr(1,0);
+    if(!fifo_was_enabled) wr(2,0);
     munmap_device_memory((void *)regs,0x20);
     opened=0; rx_left=tx_left=0;
     return 0;
@@ -83,11 +85,15 @@ static int open_uart(void) {
     if(p==MAP_FAILED) { perror("Bluetooth UART mapping"); return -1; }
     regs=(uintptr_t)p;
     saved_lcr=rd(3); saved_mcr=rd(4);
-    if(saved_lcr!=0 || saved_mcr!=0 || rd(1)!=0 || (rd(2)&0xc0)!=0xc0) {
+    uint32_t fifo_status = rd(2)&0xc0;
+    if(saved_lcr!=0 || saved_mcr!=0 || rd(1)!=0 ||
+       (fifo_status!=0 && fifo_status!=0xc0)) {
         fputs("UART differs from verified idle state; refusing\n",stderr);
         munmap_device_memory(p,0x20); return -1;
     }
     wr(3,0x80); saved_dll=rd(0); saved_dlh=rd(1); wr(3,saved_lcr);
+    fifo_was_enabled = fifo_status == 0xc0;
+    if(!fifo_was_enabled) wr(2,7); /* enable and clear idle RX/TX FIFOs */
     opened=1; error=0;
     if(set_baud(config->baudrate)) { close_uart(); return -1; }
     /* Discard stale H4 bytes left by a previously interrupted session. */

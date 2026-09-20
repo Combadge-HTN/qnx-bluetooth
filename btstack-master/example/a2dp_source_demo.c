@@ -63,6 +63,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <inttypes.h>
 #include <string.h>
 
@@ -170,6 +171,7 @@ static bool test_muted = true;
 #ifdef QNX_PCM_INPUT
 #include "pcm_input.h"
 static bool fifo_audio;
+static unsigned pcm_volume_shift = VOLUME_REDUCTION;
 #endif
 static btstack_timer_source_t quiet_test_timer;
 
@@ -350,11 +352,15 @@ static void produce_audio(int16_t * pcm_buffer, int num_samples){
     btstack_audio_generator_generate(&audio_generator_state.generator.base, pcm_buffer, num_samples);
 #ifdef VOLUME_REDUCTION
     int i;
+    unsigned volume_shift = VOLUME_REDUCTION;
+#ifdef QNX_PCM_INPUT
+    if(fifo_audio) volume_shift = pcm_volume_shift;
+#endif
     for (i=0;i<num_samples*2;i++){
         if (pcm_buffer[i] > 0){
-            pcm_buffer[i] =     pcm_buffer[i]  >> VOLUME_REDUCTION;
+            pcm_buffer[i] =     pcm_buffer[i]  >> volume_shift;
         } else {
-            pcm_buffer[i] = -((-pcm_buffer[i]) >> VOLUME_REDUCTION);
+            pcm_buffer[i] = -((-pcm_buffer[i]) >> volume_shift);
         }
     }
 #endif
@@ -951,6 +957,7 @@ static void avrcp_controller_packet_handler(uint8_t packet_type, uint16_t channe
     
     switch (packet[2]){
         case AVRCP_SUBEVENT_NOTIFICATION_VOLUME_CHANGED:
+            media_tracker.volume = avrcp_subevent_notification_volume_changed_get_absolute_volume(packet);
             printf("AVRCP Controller: Notification Absolute Volume %d %%\n", avrcp_subevent_notification_volume_changed_get_absolute_volume(packet) * 100 / 127);
             break;
         case AVRCP_SUBEVENT_NOTIFICATION_EVENT_BATT_STATUS_CHANGED:
@@ -1107,6 +1114,15 @@ static void stdin_process(char cmd){
         
 #ifdef QNX_PCM_INPUT
         case 'f':
+            {
+                const char *gain = getenv("QNX_PCM_VOLUME_SHIFT");
+                if(gain){
+                    if(strlen(gain) != 1 || gain[0] < '0' || gain[0] > '8'){
+                        puts("QNX_PCM_VOLUME_SHIFT must be 0 through 8."); break;
+                    }
+                    pcm_volume_shift = (unsigned)(gain[0] - '0');
+                }
+            }
             if(!media_tracker.stream_opened || current_sample_rate != 44100){
                 puts("PCM requires a connected 44100 Hz stream."); break;
             }
@@ -1114,7 +1130,7 @@ static void stdin_process(char cmd){
             fifo_audio = true;
             test_muted = false;
             btstack_run_loop_remove_timer(&quiet_test_timer);
-            printf("PCM FIFO ready: audio.pcm, S16_LE stereo 44100 Hz, gain 1/%u. p stops.\n", 1u << VOLUME_REDUCTION);
+            printf("PCM FIFO ready: audio.pcm, S16_LE stereo 44100 Hz, gain 1/%u. p stops.\n", 1u << pcm_volume_shift);
             if(play_info.status != AVRCP_PLAYBACK_STATUS_PLAYING)
                 status = a2dp_source_start_stream(media_tracker.a2dp_cid, media_tracker.local_seid);
             break;

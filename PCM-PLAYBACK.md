@@ -31,6 +31,12 @@ python3 play_pcm.py recording.wav
 The tone lasts three seconds. All PCM output is attenuated by 32 in the
 receiver, including WAV files. Speaker-generated chimes are independent.
 
+For application integration, the driver accepts `QNX_PCM_VOLUME_SHIFT=0`
+through `8` in its environment when `f` is pressed. The divisor is 2 raised
+to that value: 0 gives full amplitude, 2 gives 1/4; the default 5 gives 1/32. This changes
+PCM-file/stream volume only, not the built-in tone. Combadge's Bluetooth
+supervisor selects 0 and preserves speech samples without a clipping boost.
+
 Press `p` in terminal 1 to close the FIFO and pause. Press `f` to accept a new
 writer again. Ctrl-C ends the session and restores Bluetooth pins/UART.
 An existing writer may get BrokenPipeError when playback is stopped.
